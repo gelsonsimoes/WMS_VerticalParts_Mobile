@@ -19,6 +19,7 @@ dependencies:
   shared_preferences: ^2.2.3
   sqflite: ^2.3.3
   provider: ^6.1.5+1
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
