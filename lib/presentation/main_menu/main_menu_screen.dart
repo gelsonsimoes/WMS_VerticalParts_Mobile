@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/sync_status_widget.dart';
 import '../../widgets/category_tile.dart';
 import '../../routes/app_routes.dart';
+import '../../data/providers/auth_provider.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userName = authProvider.user?.nome.toUpperCase() ?? 'SESSÃO ATIVA';
+    final userProfile = authProvider.user?.perfil.toUpperCase() ?? 'OPERADOR';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppTheme.darkBackground,
@@ -63,7 +69,10 @@ class MainMenuScreen extends StatelessWidget {
                     CategoryTile(
                       title: 'SAIR DO SISTEMA',
                       icon: Icons.exit_to_app_rounded,
-                      onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
+                      onTap: () {
+                        authProvider.logout();
+                        Navigator.pushReplacementNamed(context, AppRoutes.login);
+                      },
                     ),
                   ],
                 ),
@@ -72,7 +81,7 @@ class MainMenuScreen extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 1.h),
                 child: Text(
-                  'SESSÃO ATIVA: OP001',
+                  'SESSÃO: $userName ($userProfile)',
                   style: TextStyle(color: AppTheme.goldPrimary.withOpacity(0.7), fontSize: 10.sp, letterSpacing: 1),
                 ),
               ),

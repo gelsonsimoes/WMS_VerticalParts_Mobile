@@ -18,6 +18,7 @@ dependencies:
   permission_handler: ^11.3.1
   shared_preferences: ^2.2.3
   sqflite: ^2.3.3
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:

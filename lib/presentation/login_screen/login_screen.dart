@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../../routes/app_routes.dart';
+import '../../data/models/auth_model.dart';
+import '../../data/providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,7 +46,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (_employeeIdController.text.trim() == _mockId &&
         _passwordController.text == _mockPassword) {
+      
+      // Simulação da resposta JSON solicitada
+      final authResponse = AuthResponse(
+        token: "eyJhbGciOiJIUzI1NiIs...",
+        usuario: User(
+          id: 123,
+          nome: "João Silva",
+          perfil: "operador",
+        ),
+      );
+
       if (mounted) {
+        // Salva os dados no Provider (que também persiste no SharedPreferences)
+        await Provider.of<AuthProvider>(context, listen: false).login(authResponse);
+        
         // Navegação para o Menu Principal em caso de sucesso
         Navigator.pushReplacementNamed(context, AppRoutes.mainMenu);
       }
