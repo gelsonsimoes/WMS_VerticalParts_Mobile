@@ -18,9 +18,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Mock data para autenticação (como solicitado)
-  final String _mockId = "OP001";
-  final String _mockPassword = "VP123";
+  // Credenciais de acesso conforme solicitado
+  final String _mockId = "joao.operador";
+  final String _mockPassword = "123456"; // Definido como padrão para 6 dígitos
+
 
   @override
   void dispose() {
