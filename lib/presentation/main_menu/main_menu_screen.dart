@@ -72,7 +72,7 @@ class MainMenuScreen extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 1.h),
                 child: Text(
-                  'SESSÃO ATIVA: JOAO.OPERADOR',
+                  'SESSÃO ATIVA: OP001',
                   style: TextStyle(color: AppTheme.goldPrimary.withOpacity(0.7), fontSize: 10.sp, letterSpacing: 1),
                 ),
               ),

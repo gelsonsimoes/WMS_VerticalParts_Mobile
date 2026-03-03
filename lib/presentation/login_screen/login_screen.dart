@@ -19,8 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   // Credenciais de acesso conforme solicitado
-  final String _mockId = "joao.operador";
-  final String _mockPassword = "123456"; // Definido como padrão para 6 dígitos
+  final String _mockId = "OP001";
+  final String _mockPassword = "VP123";
 
 
   @override
