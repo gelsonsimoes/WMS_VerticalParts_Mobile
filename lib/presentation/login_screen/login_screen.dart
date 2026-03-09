@@ -3,169 +3,99 @@ import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../../routes/app_routes.dart';
-import '../../data/models/auth_model.dart';
 import '../../data/providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _employeeIdController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  // Credenciais de acesso conforme solicitado
-  final String _mockId = "OP001";
-  final String _mockPassword = "VP123";
-
+  final _idCtrl  = TextEditingController();
+  final _pwCtrl  = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   @override
-  void dispose() {
-    _employeeIdController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  void dispose() { _idCtrl.dispose(); _pwCtrl.dispose(); super.dispose(); }
 
-  Future<void> _handleLogin() async {
+  bool _mostrarSenha = false;
+
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    // Simulação de delay para futura chamada REST
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (_employeeIdController.text.trim() == _mockId &&
-        _passwordController.text == _mockPassword) {
-      
-      // Simulação da resposta JSON solicitada
-      final authResponse = AuthResponse(
-        token: "eyJhbGciOiJIUzI1NiIs...",
-        usuario: User(
-          id: 123,
-          nome: "João Silva",
-          perfil: "operador",
-        ),
-      );
-
-      if (mounted) {
-        // Salva os dados no Provider (que também persiste no SharedPreferences)
-        await Provider.of<AuthProvider>(context, listen: false).login(authResponse);
-        
-        // Navegação para o Menu Principal em caso de sucesso
-        Navigator.pushReplacementNamed(context, AppRoutes.mainMenu);
-      }
-    } else {
-      setState(() {
-        _errorMessage = "ID OU SENHA INCORRETOS.";
-      });
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ok = await auth.login(_idCtrl.text.trim(), _pwCtrl.text);
+    if (ok && mounted) Navigator.pushReplacementNamed(context, AppRoutes.mainMenu);
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  height: 15.h,
-                  child: Image.asset(
-                    'img/logo_amarelo.png', 
-                    errorBuilder: (context, error, stackTrace) => Icon(
-                      Icons.warehouse_rounded,
-                      size: 10.h,
-                      color: AppTheme.goldPrimary,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  'VERTICAL PARTS WMS',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          child: Form(key: _formKey, child: Column(children: [
+            SizedBox(height: 4.h),
+            SizedBox(height: 15.h, child: Image.asset('img/logo_amarelo.png',
+              errorBuilder: (_, __, ___) => Icon(Icons.warehouse_rounded, size: 10.h, color: AppTheme.goldPrimary))),
+            SizedBox(height: 2.h),
+            Text('VERTICAL PARTS WMS', style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: AppTheme.goldPrimary, letterSpacing: 2.0, fontSize: 20.sp)),
+            SizedBox(height: 6.h),
+            TextFormField(
+              controller: _idCtrl,
+              style: TextStyle(fontSize: 14.sp),
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'ID OU E-MAIL',
+                hintText: 'Ex: OP001 ou gelson@...', 
+                prefixIcon: Icon(Icons.badge, color: AppTheme.goldPrimary)
+              ),
+              validator: (v) => (v?.isEmpty ?? true) ? 'OBRIGATORIO' : null),
+            SizedBox(height: 3.h),
+            TextFormField(
+              controller: _pwCtrl, 
+              obscureText: !_mostrarSenha,
+              style: TextStyle(fontSize: 14.sp),
+              onFieldSubmitted: (_) => _login(),
+              decoration: InputDecoration(
+                labelText: 'SENHA',
+                prefixIcon: const Icon(Icons.lock, color: AppTheme.goldPrimary),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _mostrarSenha ? Icons.visibility : Icons.visibility_off,
                     color: AppTheme.goldPrimary,
-                    letterSpacing: 2.0,
-                    fontSize: 20.sp,
                   ),
+                  onPressed: () => setState(() => _mostrarSenha = !_mostrarSenha),
                 ),
-                SizedBox(height: 6.h),
-
-                TextFormField(
-                  controller: _employeeIdController,
-                  style: TextStyle(fontSize: 14.sp),
-                  decoration: const InputDecoration(
-                    labelText: 'ID DO FUNCIONÁRIO',
-                    prefixIcon: Icon(Icons.badge, color: AppTheme.goldPrimary),
-                  ),
-                  validator: (value) => 
-                    value?.isEmpty ?? true ? 'CAMPO OBRIGATÓRIO' : null,
-                ),
-                SizedBox(height: 3.h),
-
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  style: TextStyle(fontSize: 14.sp),
-                  decoration: const InputDecoration(
-                    labelText: 'SENHA',
-                    prefixIcon: Icon(Icons.lock, color: AppTheme.goldPrimary),
-                  ),
-                  validator: (value) => 
-                    value?.isEmpty ?? true ? 'CAMPO OBRIGATÓRIO' : null,
-                ),
-                
-                if (_errorMessage != null) ...[
-                  SizedBox(height: 2.h),
-                  Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.bold),
-                  ),
-                ],
-
-                SizedBox(height: 6.h),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 10.h,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: AppTheme.darkBackground)
-                        : Text(
-                            'ENTRAR NO SISTEMA',
-                            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-                          ),
-                  ),
-                ),
-                
-                SizedBox(height: 4.h),
-                Text(
-                  'v1.1.0 MODO PRODUÇÃO',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(letterSpacing: 1),
-                ),
-              ],
-            ),
-          ),
+              ),
+              validator: (v) => (v?.isEmpty ?? true) ? 'OBRIGATORIO' : null),
+            if (auth.erro != null) ...[
+              SizedBox(height: 2.h),
+              Container(
+                padding: EdgeInsets.all(3.w),
+                decoration: BoxDecoration(color: AppTheme.errorRed.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.errorRed)),
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: AppTheme.errorRed, size: 20),
+                  SizedBox(width: 2.w),
+                  Expanded(child: Text(auth.erro!, style: const TextStyle(
+                    color: AppTheme.errorRed, fontWeight: FontWeight.bold))),
+                ])),
+            ],
+            SizedBox(height: 6.h),
+            SizedBox(width: double.infinity, height: 10.h,
+              child: ElevatedButton(
+                onPressed: auth.carregando ? null : _login,
+                child: auth.carregando
+                  ? const CircularProgressIndicator(color: AppTheme.darkBackground)
+                  : Text('ENTRAR NO SISTEMA', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)))),
+            SizedBox(height: 4.h),
+            Text('v2.0.1 · Supabase Integrated', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              letterSpacing: 1, color: AppTheme.textMuted)),
+          ])),
         ),
       ),
     );

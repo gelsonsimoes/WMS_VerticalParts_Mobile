@@ -2,22 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../../routes/app_routes.dart';
-
-class TaskItem {
-  final String sku;
-  final String descricao;
-  final int esperado;
-  int coletado;
-
-  TaskItem({
-    required this.sku,
-    required this.descricao,
-    required this.esperado,
-    this.coletado = 0,
-  });
-
-  bool get isCompleto => coletado == esperado;
-}
+import '../../data/models/task_model.dart' as model;
+import '../../data/services/supabase_service.dart';
 
 class TaskSummaryScreen extends StatefulWidget {
   const TaskSummaryScreen({super.key});
@@ -28,16 +14,22 @@ class TaskSummaryScreen extends StatefulWidget {
 
 class _TaskSummaryScreenState extends State<TaskSummaryScreen> {
   bool _isLoading = false;
+  model.Task? _task;
 
-  // Mock de dados da Tarefa Atual (Espelho da API REST)
-  final List<TaskItem> _itensTarefa = [
-    TaskItem(sku: "VEPEL-BPI-174FX", descricao: "BUCHA PLÁSTICA IND. 174FX", esperado: 5, coletado: 5),
-    TaskItem(sku: "VPER-ESS-NY-27MM", descricao: "ESPAÇADOR NYLON 27MM", esperado: 10, coletado: 7),
-    TaskItem(sku: "VP-MTR-88-AL", descricao: "MONTANTE DE ALUMÍNIO 88", esperado: 2, coletado: 0),
-  ];
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is model.Task) {
+      _task = args;
+    }
+  }
 
   Future<void> _finalizarTarefa() async {
-    bool temPendencia = _itensTarefa.any((item) => !item.isCompleto);
+    if (_task == null) return;
+    
+    // Verifica se todos os itens foram coletados
+    bool temPendencia = _task!.itens.any((item) => item.quantidadeColetada < item.quantidadeEsperada);
 
     if (temPendencia) {
       _showConfirmacaoCorte();
@@ -102,25 +94,49 @@ class _TaskSummaryScreenState extends State<TaskSummaryScreen> {
   }
 
   Future<void> _executarSincronizacaoFinal() async {
+    if (_task == null) return;
+    
     setState(() => _isLoading = true);
 
-    // Simulação Regra de Ouro: POST final para o WMS_VerticalParts
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // Atualiza o status da tarefa para concluída no Supabase
+      await SupabaseService.client.from('tarefas').update({
+        'status': 'concluida',
+        'finished_at': DateTime.now().toIso8601String(),
+      }).eq('id', _task!.id);
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('TAREFA SINCRONIZADA E ENCERRADA NO WMS!', style: TextStyle(fontWeight: FontWeight.bold)),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.mainMenu, (route) => false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('TAREFA SINCRONIZADA E ENCERRADA NO WMS!', style: TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.mainMenu, (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ERRO AO FINALIZAR: $e', style: const TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_task == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('RESUMO DA ORDEM')),
+        body: const Center(child: Text('Nenhuma tarefa carregada')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('RESUMO DA ORDEM'),
@@ -132,9 +148,9 @@ class _TaskSummaryScreenState extends State<TaskSummaryScreen> {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.all(4.w),
-                itemCount: _itensTarefa.length,
+                itemCount: _task!.itens.length,
                 itemBuilder: (context, index) {
-                  final item = _itensTarefa[index];
+                  final item = _task!.itens[index];
                   return _buildItemCard(item);
                 },
               ),
@@ -164,9 +180,10 @@ class _TaskSummaryScreenState extends State<TaskSummaryScreen> {
     );
   }
 
-  Widget _buildItemCard(TaskItem item) {
-    Color statusColor = item.isCompleto ? AppTheme.successGreen : AppTheme.goldPrimary;
-    if (item.coletado == 0) statusColor = AppTheme.textMuted;
+  Widget _buildItemCard(model.TaskItem item) {
+    final bool isCompleto = item.quantidadeColetada >= item.quantidadeEsperada;
+    Color statusColor = isCompleto ? AppTheme.successGreen : AppTheme.goldPrimary;
+    if (item.quantidadeColetada == 0) statusColor = AppTheme.textMuted;
 
     return Container(
       margin: EdgeInsets.only(bottom: 2.h),
@@ -196,7 +213,7 @@ class _TaskSummaryScreenState extends State<TaskSummaryScreen> {
               border: Border.all(color: statusColor),
             ),
             child: Text(
-              '${item.coletado}/${item.esperado}',
+              '${item.quantidadeColetada}/${item.quantidadeEsperada}',
               style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 15.sp),
             ),
           ),

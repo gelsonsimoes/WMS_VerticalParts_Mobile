@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 
@@ -27,20 +28,40 @@ class _PrintLabelScreenState extends State<PrintLabelScreen> {
   @override
   void initState() {
     super.initState();
-    _sku = widget.initialSku ?? "VPER-ESS-NY-27MM";
+    _sku = widget.initialSku; // Removido SKU fixo para forçar definição
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedPrinter = prefs.getString('last_printer_id');
+    });
+  }
+
+  Future<void> _savePrinter(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_printer_id', id);
+    setState(() => _selectedPrinter = id);
   }
 
   Future<void> _buscarImpressoras() async {
     setState(() => _isSearching = true);
+    // TODO: Implementar busca real bvia flutter_bluetooth_serial ou similar
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => _isSearching = false);
   }
 
   Future<void> _imprimirZPL() async {
-    if (_selectedPrinter == null) {
-      _showFeedback("POR FAVOR, SELECIONE UMA IMPRESSORA", AppTheme.errorRed);
+    if (_sku == null || _sku!.isEmpty) {
+      _showFeedback("NENHUM SKU DEFINIDO", AppTheme.errorRed);
       return;
     }
+    if (_selectedPrinter == null) {
+      _showFeedback("SELECIONE UMA IMPRESSORA", AppTheme.errorRed);
+      return;
+    }
+// ...
 
     setState(() => _isPrinting = true);
 
@@ -149,7 +170,7 @@ class _PrintLabelScreenState extends State<PrintLabelScreen> {
     return Container(
       margin: EdgeInsets.only(bottom: 2.h),
       child: ListTile(
-        onTap: () => setState(() => _selectedPrinter = printer["id"]),
+        onTap: () => _savePrinter(printer["id"]!),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: isSelected ? AppTheme.goldPrimary : Colors.transparent, width: 2),

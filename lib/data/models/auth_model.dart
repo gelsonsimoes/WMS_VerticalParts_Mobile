@@ -1,44 +1,27 @@
-class User {
-  final int id;
+class OperadorPerfil {
+  final String id;
+  final String employeeId;
   final String nome;
   final String perfil;
 
-  User({
+  const OperadorPerfil({
     required this.id,
+    required this.employeeId,
     required this.nome,
     required this.perfil,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['id'],
-      nome: json['nome'],
-      perfil: json['perfil'],
-    );
-  }
+  factory OperadorPerfil.fromJson(Map<String, dynamic> json) => OperadorPerfil(
+        id: json['id'],
+        employeeId: json['employee_id'] ?? '',
+        nome: json['nome'] ?? 'Operador',
+        perfil: json['perfil'] ?? 'Geral',
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nome': nome,
-      'perfil': perfil,
-    };
-  }
-}
-
-class AuthResponse {
-  final String token;
-  final User usuario;
-
-  AuthResponse({
-    required this.token,
-    required this.usuario,
-  });
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      token: json['token'],
-      usuario: User.fromJson(json['usuario']),
-    );
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'employee_id': employeeId,
+        'nome': nome,
+        'perfil': perfil,
+      };
 }

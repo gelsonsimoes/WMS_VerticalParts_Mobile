@@ -52,26 +52,6 @@ class ScannerOverlayWidget extends StatelessWidget {
               border: Border.all(color: borderColor, width: 4),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _corner(0, 0),
-                    _corner(0, 1),
-                  ],
-                ),
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _corner(1, 0),
-                    _corner(1, 1),
-                  ],
-                ),
-              ],
-            ),
           ),
         ),
         // Texto de instrução
@@ -96,9 +76,5 @@ class ScannerOverlayWidget extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  Widget _corner(double top, double left) {
-    return const SizedBox.shrink(); // Apenas placeholder, a borda do container já faz o serviço
   }
 }

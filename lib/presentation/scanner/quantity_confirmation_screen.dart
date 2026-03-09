@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
+import '../../data/providers/sync_provider.dart';
+import '../../data/providers/quantity_confirmation_provider.dart';
 import './widgets/industrial_numeric_keyboard.dart';
 
 class QuantityConfirmationScreen extends StatefulWidget {
   final String sku;
   final int expectedQuantity;
+  final String taskId;
+  final String itemId;
 
   const QuantityConfirmationScreen({
     super.key,
     required this.sku,
     required this.expectedQuantity,
+    required this.taskId,
+    required this.itemId,
   });
 
   @override
@@ -18,71 +25,47 @@ class QuantityConfirmationScreen extends StatefulWidget {
 }
 
 class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen> {
-  String _currentQuantity = "0";
-  bool _isLoading = false;
-
-  void _updateQuantity(String key) {
-    setState(() {
-      if (_currentQuantity == "0") {
-        _currentQuantity = key;
-      } else {
-        _currentQuantity += key;
-      }
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<QuantityConfirmationProvider>().init(widget.expectedQuantity);
     });
   }
 
-  void _backspace() {
-    setState(() {
-      if (_currentQuantity.length > 1) {
-        _currentQuantity = _currentQuantity.substring(0, _currentQuantity.length - 1);
-      } else {
-        _currentQuantity = "0";
-      }
-    });
-  }
-
-  void _quickAction(int value) {
-    int current = int.tryParse(_currentQuantity) ?? 0;
-    setState(() {
-      _currentQuantity = (current + value).clamp(0, 9999).toString();
-    });
-  }
-
-  void _setTotal() {
-    setState(() {
-      _currentQuantity = widget.expectedQuantity.toString();
-    });
-  }
-
-  Future<void> _confirmarQuantidade() async {
-    int finalQty = int.tryParse(_currentQuantity) ?? 0;
+  Future<void> _processarConfirmacao(QuantityConfirmationProvider provider) async {
+    int finalQty = int.tryParse(provider.currentQuantity) ?? 0;
     
     if (finalQty <= 0) {
       _showResult("QUANTIDADE INVÁLIDA", AppTheme.errorRed);
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Simulação de Envio REST (Regra de Ouro: Sem banco local)
-    await Future.delayed(const Duration(seconds: 1));
-
     if (finalQty > widget.expectedQuantity) {
       _showResult("ERRO: QUANTIDADE EXCEDE O LIMITE DA TAREFA", AppTheme.errorRed);
-    } else {
-      _showResult("QUANTIDADE REGISTRADA COM SUCESSO!", AppTheme.successGreen);
-      if (mounted) {
-        // Retorna para o scanner para o próximo item
-        Navigator.pop(context, true);
-      }
+      return;
     }
 
+    provider.setLoading(true);
+
+    final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+    
+    final success = await syncProvider.performCollection(
+      tarefaId: widget.taskId,
+      itemId: widget.itemId,
+      quantidade: finalQty,
+    );
+
     if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      provider.setLoading(false);
+
+      if (success) {
+        _showResult("QUANTIDADE REGISTRADA COM SUCESSO!", AppTheme.successGreen);
+        Navigator.pop(context, true);
+      } else {
+        _showResult("ERRO AO REGISTRAR. TENTE NOVAMENTE.", AppTheme.errorRed);
+      }
     }
   }
 
@@ -98,6 +81,8 @@ class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<QuantityConfirmationProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('CONFIRMAR QUANTIDADE'),
@@ -142,7 +127,7 @@ class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen>
                 ),
                 child: Center(
                   child: Text(
-                    _currentQuantity,
+                    provider.currentQuantity,
                     style: TextStyle(fontSize: 40.sp, fontWeight: FontWeight.bold, color: AppTheme.textLight),
                   ),
                 ),
@@ -154,10 +139,10 @@ class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _quickActionBtn("-1", () => _quickAction(-1)),
-                  _quickActionBtn("+1", () => _quickAction(1)),
-                  _quickActionBtn("+5", () => _quickAction(5)),
-                  _quickActionBtn("TOTAL", _setTotal, isGold: true),
+                  _quickActionBtn("-1", () => provider.quickAction(-1)),
+                  _quickActionBtn("+1", () => provider.quickAction(1)),
+                  _quickActionBtn("+5", () => provider.quickAction(5)),
+                  _quickActionBtn("TOTAL", () => provider.setTotal(), isGold: true),
                 ],
               ),
 
@@ -166,9 +151,9 @@ class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen>
               // Teclado Industrial
               Expanded(
                 child: IndustrialNumericKeyboard(
-                  onKeyPressed: _updateQuantity,
-                  onBackspace: _backspace,
-                  onClear: () => setState(() => _currentQuantity = "0"),
+                  onKeyPressed: (v) => provider.updateQuantity(v),
+                  onBackspace: () => provider.backspace(),
+                  onClear: () => provider.clear(),
                 ),
               ),
 
@@ -179,8 +164,8 @@ class _QuantityConfirmationScreenState extends State<QuantityConfirmationScreen>
                 width: double.infinity,
                 height: 10.h,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _confirmarQuantidade,
-                  child: _isLoading 
+                  onPressed: provider.isLoading ? null : () => _processarConfirmacao(provider),
+                  child: provider.isLoading 
                     ? const CircularProgressIndicator(color: AppTheme.darkBackground)
                     : Text('CONFIRMAR REGISTRO', style: TextStyle(fontSize: 18.sp)),
                 ),

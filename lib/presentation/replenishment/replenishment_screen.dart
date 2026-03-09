@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
+import '../../routes/app_routes.dart';
 import '../scanner/widgets/scanner_overlay_widget.dart';
 import '../scanner/widgets/industrial_numeric_keyboard.dart';
+import '../../data/providers/replenishment_provider.dart';
+import '../../data/providers/sync_provider.dart';
 
 class ReplenishmentScreen extends StatefulWidget {
   const ReplenishmentScreen({super.key});
@@ -14,82 +18,43 @@ class ReplenishmentScreen extends StatefulWidget {
 
 class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
   final MobileScannerController _controller = MobileScannerController();
-  
-  int _etapaAtual = 1; // 1: Origem, 2: Produto, 3: Qtd, 4: Destino
-  bool _isLoading = false;
 
-  // Dados da Operação
-  String? _origem;
-  String? _sku;
-  String _quantidade = "0";
-  String? _destino;
-
-  // Mock de Saldo (Regra de Ouro: Simulação de API)
-  final Map<String, int> _mockSaldos = {
-    "VEPEL-BPI-174FX": 45,
-    "VPER-PAL-INO-1000": 12,
-    "VPER-ESS-NY-27MM": 1200,
-  };
-
-  void _processarLeitura(String code) {
-    if (_isLoading) return;
-
-    setState(() {
-      if (_etapaAtual == 1) {
-        _origem = code;
-        _etapaAtual = 2;
-      } else if (_etapaAtual == 2) {
-        _sku = code;
-        _etapaAtual = 3;
-      } else if (_etapaAtual == 4) {
-        _destino = code;
-        _finalizarRemanejamento();
-      }
-    });
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  Future<void> _validarQuantidade() async {
-    int qtdDigitada = int.tryParse(_quantidade) ?? 0;
-    if (qtdDigitada <= 0) return;
+  void _processarLeitura(ReplenishmentProvider provider, String code) async {
+    if (provider.isLoading) return;
 
-    setState(() => _isLoading = true);
-
-    // Simulação de Validação de Saldo na Origem (REST)
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    int saldoDisponivel = _mockSaldos[_sku] ?? 0;
-
-    if (mounted) {
-      if (qtdDigitada > saldoDisponivel) {
-        _showError("SALDO INSUFICIENTE! DISPONÍVEL: $saldoDisponivel UN");
-        setState(() => _isLoading = false);
-      } else {
-        setState(() {
-          _etapaAtual = 4;
-          _isLoading = false;
-        });
-      }
+    if (provider.currentStep <= 2) {
+      provider.processScan(code);
+    } else if (provider.currentStep == 4) {
+      _finalizarOperacao(provider, code);
     }
   }
 
-  Future<void> _finalizarRemanejamento() async {
-    setState(() => _isLoading = true);
+  Future<void> _finalizarOperacao(ReplenishmentProvider provider, String destino) async {
+    provider.setLoading(true);
 
-    // Simulação de POST Final de Efetivação
-    await Future.delayed(const Duration(seconds: 1));
+    final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+    
+    final success = await syncProvider.performReplenishment(
+      origemId: provider.sourceAddress,
+      destinoId: destino,
+      sku: provider.sku!,
+      quantidade: int.parse(provider.quantity),
+    );
 
     if (mounted) {
-      _showSuccess("REMANEJAMENTO CONCLUÍDO COM SUCESSO!");
-      
-      // Limpa para novo remanejamento ou volta ao menu
-      setState(() {
-        _etapaAtual = 1;
-        _origem = null;
-        _sku = null;
-        _quantidade = "0";
-        _destino = null;
-        _isLoading = false;
-      });
+      if (success) {
+        _showSuccess("REMANEJAMENTO CONCLUÍDO COM SUCESSO!");
+        provider.reset();
+      } else {
+        _showError("ERRO AO FINALIZAR REMANEJO.");
+        provider.setLoading(false);
+      }
     }
   }
 
@@ -111,6 +76,8 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ReplenishmentProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('REMANEJAMENTO DE ESTOQUE'),
@@ -118,22 +85,38 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() => _etapaAtual = 1),
+            onPressed: () => provider.reset(),
           )
         ],
       ),
       body: Column(
         children: [
-          _buildProgressBar(),
+          _buildProgressBar(provider),
           Expanded(
-            child: _etapaAtual == 3 ? _buildQuantityPanel() : _buildScannerPanel(),
+            child: provider.currentStep == 3 ? _buildQuantityPanel(provider) : _buildScannerPanel(provider),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.pushNamed(
+            context, 
+            AppRoutes.damageReport,
+            arguments: {
+              'taskId': 'REMANEJAMENTO',
+              'itemId': provider.sku,
+              'sku': provider.sku,
+            },
+          );
+        },
+        backgroundColor: AppTheme.errorRed,
+        icon: const Icon(Icons.report_problem, color: Colors.white),
+        label: const Text('AVARIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _buildProgressBar() {
+  Widget _buildProgressBar(ReplenishmentProvider provider) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 5.w),
       color: AppTheme.surfaceDark,
@@ -141,8 +124,8 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(4, (index) {
           int step = index + 1;
-          bool isPath = step < _etapaAtual;
-          bool isCurrent = step == _etapaAtual;
+          bool isPath = step < provider.currentStep;
+          bool isCurrent = step == provider.currentStep;
 
           return Expanded(
             child: Row(
@@ -164,7 +147,7 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
                   Expanded(
                     child: Container(
                       height: 2,
-                      color: step < _etapaAtual ? AppTheme.successGreen : AppTheme.textMuted,
+                      color: step < provider.currentStep ? AppTheme.successGreen : AppTheme.textMuted,
                     ),
                   ),
               ],
@@ -175,9 +158,9 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
     );
   }
 
-  Widget _buildScannerPanel() {
+  Widget _buildScannerPanel(ReplenishmentProvider provider) {
     String instrucao = "";
-    switch (_etapaAtual) {
+    switch (provider.currentStep) {
       case 1: instrucao = "BIPE O ENDEREÇO DE ORIGEM"; break;
       case 2: instrucao = "BIPE O SKU DO PRODUTO"; break;
       case 4: instrucao = "BIPE O ENDEREÇO DE DESTINO"; break;
@@ -188,13 +171,13 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
         MobileScanner(
           controller: _controller,
           onDetect: (capture) {
-            final List<Barcode> barcodes = capture.barcodes;
+            final barcodes = capture.barcodes;
             if (barcodes.isNotEmpty) {
-              _processarLeitura(barcodes.first.rawValue ?? "");
+              _processarLeitura(provider, barcodes.first.rawValue ?? "");
             }
           },
         ),
-        ScannerOverlayWidget(borderColor: _isLoading ? AppTheme.textMuted : AppTheme.goldPrimary),
+        ScannerOverlayWidget(borderColor: provider.isLoading ? AppTheme.textMuted : AppTheme.goldPrimary),
         
         Align(
           alignment: Alignment.topCenter,
@@ -212,15 +195,15 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
           ),
         ),
 
-        if (_etapaAtual > 1)
+        if (provider.currentStep > 1)
           Positioned(
             bottom: 2.h,
             left: 5.w,
             right: 5.w,
-            child: _buildSummaryMiniCard(),
+            child: _buildSummaryMiniCard(provider),
           ),
 
-        if (_isLoading)
+        if (provider.isLoading)
           Container(
             color: Colors.black54,
             child: const Center(child: CircularProgressIndicator(color: AppTheme.goldPrimary)),
@@ -229,12 +212,12 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
     );
   }
 
-  Widget _buildQuantityPanel() {
+  Widget _buildQuantityPanel(ReplenishmentProvider provider) {
     return Padding(
       padding: EdgeInsets.all(5.w),
       child: Column(
         children: [
-          _buildSummaryMiniCard(),
+          _buildSummaryMiniCard(provider),
           SizedBox(height: 3.h),
           Text(
             'INFORME A QUANTIDADE',
@@ -245,14 +228,14 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
             width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 2.h),
             decoration: BoxDecoration(border: Border.all(color: AppTheme.goldPrimary), borderRadius: BorderRadius.circular(8)),
-            child: Center(child: Text(_quantidade, style: TextStyle(fontSize: 35.sp, fontWeight: FontWeight.bold))),
+            child: Center(child: Text(provider.quantity, style: TextStyle(fontSize: 35.sp, fontWeight: FontWeight.bold))),
           ),
           SizedBox(height: 2.h),
           Expanded(
             child: IndustrialNumericKeyboard(
-              onKeyPressed: (val) => setState(() => _quantidade = _quantidade == "0" ? val : _quantidade + val),
-              onBackspace: () => setState(() => _quantidade = _quantidade.length > 1 ? _quantidade.substring(0, _quantidade.length - 1) : "0"),
-              onClear: () => setState(() => _quantidade = "0"),
+              onKeyPressed: (val) => provider.updateQuantity(val),
+              onBackspace: () => provider.backspaceQuantity(),
+              onClear: () => provider.clearQuantity(),
             ),
           ),
           SizedBox(height: 2.h),
@@ -260,8 +243,8 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
             width: double.infinity,
             height: 9.h,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _validarQuantidade,
-              child: _isLoading 
+              onPressed: provider.isLoading ? null : () => provider.nextToDestination(),
+              child: provider.isLoading 
                 ? const CircularProgressIndicator(color: AppTheme.darkBackground) 
                 : const Text('AVANÇAR PARA DESTINO'),
             ),
@@ -271,7 +254,7 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
     );
   }
 
-  Widget _buildSummaryMiniCard() {
+  Widget _buildSummaryMiniCard(ReplenishmentProvider provider) {
     return Container(
       padding: EdgeInsets.all(4.w),
       decoration: BoxDecoration(
@@ -281,9 +264,9 @@ class _ReplenishmentScreenState extends State<ReplenishmentScreen> {
       ),
       child: Column(
         children: [
-          if (_origem != null) _miniRow("ORIGEM:", _origem!),
-          if (_sku != null) _miniRow("PRODUTO:", _sku!),
-          if (_etapaAtual > 3) _miniRow("QTD:", "$_quantidade UN"),
+          if (provider.sourceAddress != null) _miniRow("ORIGEM:", provider.sourceAddress!),
+          if (provider.sku != null) _miniRow("PRODUTO:", provider.sku!),
+          if (provider.currentStep > 3) _miniRow("QTD:", "${provider.quantity} UN"),
         ],
       ),
     );

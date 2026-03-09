@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../scanner/widgets/scanner_overlay_widget.dart';
+import '../../data/services/supabase_service.dart';
 
 class QuickQueryScreen extends StatefulWidget {
   const QuickQueryScreen({super.key});
@@ -16,30 +17,6 @@ class _QuickQueryScreenState extends State<QuickQueryScreen> {
   bool _isProcessing = false;
   Map<String, dynamic>? _queryResult;
 
-  // Massa de dados Mock (Real-time API Simulation)
-  final Map<String, Map<String, dynamic>> _mockDatabase = {
-    "VEPEL-BPI-174FX": {
-      "tipo": "PRODUTO",
-      "descricao": "BARREIRA DE PROTEÇÃO INFRAVERMELHA 174FX",
-      "total": 45,
-      "locais": ["RUA-A-01-N1", "RUA-B-05-N2"],
-    },
-    "VPER-ESS-NY-27MM": {
-      "tipo": "PRODUTO",
-      "descricao": "ESPAÇADOR NYLON 27MM - ALTO DESEMPENHO",
-      "total": 1200,
-      "locais": ["RUA-C-10-N4"],
-    },
-    "RUA-A-01-N4": {
-      "tipo": "ENDEREÇO",
-      "descricao": "ENDEREÇO LOGÍSTICO: RUA A, COLUNA 01, NÍVEL 4",
-      "itens": [
-        {"sku": "VPER-PAL-INO-1000", "qtd": 2},
-        {"sku": "VP-MTR-88-AL", "qtd": 15},
-      ],
-    },
-  };
-
   Future<void> _consultar(String code) async {
     if (_isProcessing) return;
 
@@ -48,13 +25,67 @@ class _QuickQueryScreenState extends State<QuickQueryScreen> {
       _queryResult = null;
     });
 
-    // Simulação GET REST
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      final upCode = code.trim().toUpperCase();
+      
+      // Tenta validar como produto primeiro
+      final produto = await SupabaseService.validarCodigo(codigo: upCode, tipo: 'produto');
+      
+        if (produto != null) {
+          final estoques = await SupabaseService.consultarEstoque(upCode);
+          
+          int total = 0;
+          List<Map<String, dynamic>> detalhes = [];
+          for (var e in estoques) {
+            total += (e['quantidade'] as num).toInt();
+            final end = e['enderecos'];
+            detalhes.add({
+              "local": "${end['rua']}-${end['coluna']}-${end['nivel']}",
+              "peso": e['peso'],
+              "cor": e['cor'],
+              "qtd": e['quantidade'],
+            });
+          }
 
-    setState(() {
-      _queryResult = _mockDatabase[code] ?? {"erro": "CÓDIGO NÃO ENCONTRADO NO WMS"};
-      _isProcessing = false;
-    });
+          setState(() {
+            _queryResult = {
+              "tipo": "PRODUTO",
+              "descricao": produto['descricao'] ?? "SEM DESCRIÇÃO",
+              "total": total,
+              "detalhes": detalhes,
+            };
+          });
+        } else {
+          final endereco = await SupabaseService.validarCodigo(codigo: upCode, tipo: 'endereco');
+          
+          if (endereco != null) {
+            final itens = await SupabaseService.consultarConteudoEndereco(upCode);
+            
+            setState(() {
+              _queryResult = {
+                "tipo": "ENDEREÇO",
+                "descricao": "ENDEREÇO: ${endereco['id']}",
+                "itens": itens.map((i) => {
+                  "sku": i['produtos']['sku'],
+                  "qtd": i['quantidade'],
+                  "peso": i['peso'],
+                  "cor": i['cor'],
+                }).toList(),
+              };
+            });
+          } else {
+          setState(() {
+            _queryResult = {"erro": "CÓDIGO NÃO ENCONTRADO NO WMS"};
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _queryResult = {"erro": "ERRO NA CONSULTA: $e"};
+      });
+    } finally {
+      setState(() => _isProcessing = false);
+    }
   }
 
   @override
@@ -168,17 +199,69 @@ class _QuickQueryScreenState extends State<QuickQueryScreen> {
           if (isProduto) ...[
             _buildInfoRow("SALDO TOTAL", "${data["total"]} UN"),
             SizedBox(height: 2.h),
-            Text("ENDEREÇOS:", style: TextStyle(color: AppTheme.goldPrimary, fontSize: 12.sp, fontWeight: FontWeight.bold)),
-            ...(data["locais"] as List).map((loc) => Padding(
-                  padding: EdgeInsets.only(top: 1.h),
-                  child: Text("• $loc", style: TextStyle(color: AppTheme.textLight, fontSize: 13.sp)),
+            Text("DETALHES POR ENDEREÇO:", style: TextStyle(color: AppTheme.goldPrimary, fontSize: 12.sp, fontWeight: FontWeight.bold)),
+            ...(data["detalhes"] as List).map((det) => Container(
+                  margin: EdgeInsets.only(top: 1.5.h),
+                  padding: EdgeInsets.all(3.w),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceDark,
+                    border: Border(left: BorderSide(color: AppTheme.successGreen, width: 4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(det["local"], style: TextStyle(color: AppTheme.textLight, fontSize: 13.sp, fontWeight: FontWeight.bold)),
+                          Text("${det["qtd"]} UN", style: TextStyle(color: AppTheme.successGreen, fontSize: 13.sp, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      if (det["peso"] != null || det["cor"] != null) Divider(color: AppTheme.textMuted.withOpacity(0.3)),
+                      Row(
+                        children: [
+                          if (det["peso"] != null) ...[
+                            Icon(Icons.scale, color: AppTheme.textMuted, size: 12.sp),
+                            SizedBox(width: 1.w),
+                            Text("${det["peso"]} kg", style: TextStyle(color: AppTheme.textMuted, fontSize: 11.sp)),
+                            SizedBox(width: 4.w),
+                          ],
+                          if (det["cor"] != null && det["cor"] != "") ...[
+                            Icon(Icons.palette, color: AppTheme.textMuted, size: 12.sp),
+                            SizedBox(width: 1.w),
+                            Text("${det["cor"]}", style: TextStyle(color: AppTheme.textMuted, fontSize: 11.sp)),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 )),
           ] else ...[
             Text("CONTEÚDO DO ENDEREÇO:", style: TextStyle(color: AppTheme.goldPrimary, fontSize: 12.sp, fontWeight: FontWeight.bold)),
             SizedBox(height: 1.h),
-            ...(data["itens"] as List).map((item) => Padding(
-                  padding: EdgeInsets.only(bottom: 1.h),
-                  child: Text("• ${item["sku"]} [${item["qtd"]} UN]", style: TextStyle(color: AppTheme.textLight, fontSize: 13.sp)),
+            ...(data["itens"] as List).map((item) => Container(
+                  margin: EdgeInsets.only(bottom: 1.h),
+                  padding: EdgeInsets.all(3.w),
+                  decoration: BoxDecoration(color: AppTheme.surfaceDark, borderRadius: BorderRadius.circular(4)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(item["sku"], style: TextStyle(color: AppTheme.textLight, fontSize: 13.sp, fontWeight: FontWeight.bold)),
+                          Text("${item["qtd"]} UN", style: TextStyle(color: AppTheme.successGreen, fontSize: 13.sp)),
+                        ],
+                      ),
+                      if (item["peso"] != null || (item["cor"] != null && item["cor"] != "")) ...[
+                        SizedBox(height: 0.5.h),
+                        Text(
+                          "Extra: ${item["peso"] ?? '-'} kg / ${item["cor"] ?? '-'}",
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 10.sp),
+                        ),
+                      ],
+                    ],
+                  ),
                 )),
           ],
         ],

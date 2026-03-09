@@ -1,48 +1,83 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import '../services/supabase_service.dart';
 import '../models/auth_model.dart';
-import 'dart:convert';
 
 class AuthProvider extends ChangeNotifier {
-  User? _user;
-  String? _token;
+  OperadorPerfil? _perfil;
+  bool _carregando = false;
+  String? _erro;
+  StreamSubscription<sb.AuthState>? _authSub;
 
-  User? get user => _user;
-  String? get token => _token;
-  bool get isAuthenticated => _token != null;
+  OperadorPerfil? get perfil     => _perfil;
+  bool           get carregando  => _carregando;
+  String?        get erro        => _erro;
+  bool           get autenticado => SupabaseService.sessaoAtual != null && _perfil != null;
+  OperadorPerfil? get user       => _perfil;
+  String?        get token       => SupabaseService.sessaoAtual?.accessToken;
 
-  Future<void> login(AuthResponse response) async {
-    _user = response.usuario;
-    _token = response.token;
+  AuthProvider() { _inicializar(); }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', _token!);
-    await prefs.setString('user_data', json.encode(_user!.toJson()));
-
-    notifyListeners();
+  Future<void> _inicializar() async {
+    final s = SupabaseService.sessaoAtual;
+    if (s != null) await _carregarPerfil(s.user.id);
+    
+    _authSub = SupabaseService.client.auth.onAuthStateChange.listen((data) async {
+      if (data.event == sb.AuthChangeEvent.signedIn && data.session != null) {
+        await _carregarPerfil(data.session!.user.id);
+      } else if (data.event == sb.AuthChangeEvent.signedOut) {
+        _perfil = null; 
+        notifyListeners();
+      }
+    });
   }
 
-  Future<void> logout() async {
-    _user = null;
-    _token = null;
+  Future<void> _carregarPerfil(String uid) async {
+    try {
+      final d = await SupabaseService.getPerfil(uid);
+      if (d != null) { 
+        _perfil = OperadorPerfil.fromJson(d); 
+        notifyListeners(); 
+      } else {
+        // Se logou com sucesso mas o perfil não existe, forçamos logout
+        await logout();
+      }
+    } catch (e) {
+      _erro = "Erro ao carregar perfil: $e";
+      notifyListeners();
+    }
+  }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('user_data');
+  Future<bool> login(String employeeId, String senha) async {
+    _carregando = true; _erro = null; notifyListeners();
+    try {
+      final r = await SupabaseService.login(employeeId, senha);
+      if (r.user != null) {
+        await _carregarPerfil(r.user!.id);
+        _carregando = false; notifyListeners(); return true;
+      }
+      _erro = 'ID ou senha incorretos.';
+    } on sb.AuthException catch (e) {
+      _erro = e.message.contains('Invalid') ? 'ID ou senha incorretos.' : 'Erro de conexao.';
+    } catch (_) { _erro = 'Sem conexao com o servidor.'; }
+    _carregando = false; notifyListeners(); return false;
+  }
 
-    notifyListeners();
+  Future<void> logout() async { 
+    await SupabaseService.logout(); 
+    _perfil = null; 
+    notifyListeners(); 
   }
 
   Future<void> tryAutoLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey('auth_token')) return;
+    final s = SupabaseService.sessaoAtual;
+    if (s != null && _perfil == null) await _carregarPerfil(s.user.id);
+  }
 
-    _token = prefs.getString('auth_token');
-    final userData = prefs.getString('user_data');
-    if (userData != null) {
-      _user = User.fromJson(json.decode(userData));
-    }
-    
-    notifyListeners();
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 }

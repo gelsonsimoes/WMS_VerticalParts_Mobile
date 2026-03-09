@@ -96,7 +96,16 @@ class _ManualInputWidgetState extends State<ManualInputWidget> {
               SizedBox(width: 4.w),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => widget.onSubmitted(_controller.text),
+                  onPressed: () {
+                    final cleanCode = _controller.text.trim().toUpperCase();
+                    if (cleanCode.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('INFORME UM CÓDIGO VÁLIDO'), backgroundColor: AppTheme.errorRed),
+                      );
+                      return;
+                    }
+                    widget.onSubmitted(cleanCode);
+                  },
                   child: const Text('CONFIRMAR'),
                 ),
               ),

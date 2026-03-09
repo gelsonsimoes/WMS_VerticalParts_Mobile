@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/sync_status_widget.dart';
-import '../../widgets/category_tile.dart';
-import '../../routes/app_routes.dart';
-import '../../data/providers/auth_provider.dart';
+import 'package:verticalpartswms/theme/app_theme.dart';
+import 'package:verticalpartswms/widgets/sync_status_widget.dart';
+import 'package:verticalpartswms/widgets/category_tile.dart';
+import 'package:verticalpartswms/routes/app_routes.dart';
+import 'package:verticalpartswms/data/providers/auth_provider.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -31,7 +31,7 @@ class MainMenuScreen extends StatelessWidget {
           padding: EdgeInsets.all(4.w),
           child: Column(
             children: [
-              const SyncStatusWidget(isOnline: true),
+              const SyncStatusWidget(),
               
               SizedBox(height: 3.h),
               
@@ -49,7 +49,7 @@ class MainMenuScreen extends StatelessWidget {
                     CategoryTile(
                       title: 'ALOCAÇÃO (GUARDA)',
                       icon: Icons.inventory_2_rounded,
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.scanner),
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.allocationTasks),
                     ),
                     CategoryTile(
                       title: 'REMANEJAMENTO (ESTOQUE)',
@@ -59,7 +59,7 @@ class MainMenuScreen extends StatelessWidget {
                     CategoryTile(
                       title: 'SEPARAÇÃO (PICKING)',
                       icon: Icons.shopping_basket_rounded,
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.picking),
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.pickingTasks),
                     ),
                     CategoryTile(
                       title: 'CONSULTAS E INVENTÁRIO',

@@ -4,6 +4,7 @@ import 'package:sizer/sizer.dart';
 import '../../theme/app_theme.dart';
 import '../scanner/widgets/scanner_overlay_widget.dart';
 import '../scanner/widgets/industrial_numeric_keyboard.dart';
+import '../../data/services/supabase_service.dart';
 
 class BlindCountScreen extends StatefulWidget {
   const BlindCountScreen({super.key});
@@ -40,27 +41,46 @@ class _BlindCountScreenState extends State<BlindCountScreen> {
 
     setState(() => _isLoading = true);
     
-    // Simulação Regra de Ouro (Validação no Servidor)
-    await Future.delayed(const Duration(seconds: 1));
-
-    // Lógica Mock de Divergência
-    bool temDivergencia = _produtoLido == "VPER-ESS-NY-27MM" && qtd != 1200;
-
-    if (mounted) {
-      _showResultado(
-        temDivergencia ? 'DIVERGÊNCIA ENCONTRADA - RECONTAGEM SOLICITADA' : 'CONTAGEM VALIDADA - ESTOQUE CORRETO',
-        temDivergencia ? AppTheme.errorRed : AppTheme.successGreen,
-      );
+    try {
+      // Registrar a contagem no Supabase (precisamos de uma tabela ou RPC para isso)
+      // Por enquanto, vamos usar uma lógica de validação contra o estoque real
+      final estoques = await SupabaseService.consultarEstoque(_produtoLido!);
       
-      if (!temDivergencia) {
-        setState(() {
-          _enderecoLido = null;
-          _produtoLido = null;
-          _quantidadeDigitada = "0";
-          _etapaAtual = 1;
-        });
+      int totalEsperado = 0;
+      for (var e in estoques) {
+        // Filtrar apenas para o endereço atual
+        if (e['enderecos']['id'] == _enderecoLido) {
+          totalEsperado += (e['quantidade'] as num).toInt();
+        }
       }
-      setState(() => _isLoading = false);
+
+      bool temDivergencia = qtd != totalEsperado;
+
+      if (mounted) {
+        _showResultado(
+          temDivergencia 
+            ? 'DIVERGÊNCIA ENCONTRADA (ESPERADO: $totalEsperado) - RECONTAGEM SOLICITADA' 
+            : 'CONTAGEM VALIDADA - ESTOQUE CORRETO',
+          temDivergencia ? AppTheme.errorRed : AppTheme.successGreen,
+        );
+        
+        if (!temDivergencia) {
+          setState(() {
+            _enderecoLido = null;
+            _produtoLido = null;
+            _quantidadeDigitada = "0";
+            _etapaAtual = 1;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showResultado('ERRO AO PROCESSAR CONTAGEM: $e', AppTheme.errorRed);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

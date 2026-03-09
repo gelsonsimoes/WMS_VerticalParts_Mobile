@@ -1,0 +1,19 @@
+Analyzing WMS_VerticalParts_Mobile...                           
+
+   info - The imported package 'http' isn't a dependency of the importing package - lib\data\services\api_service.dart:2:8 - depend_on_referenced_packages
+   info - Don't invoke 'print' in production code - lib\data\services\api_service.dart:34:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\api_service.dart:55:7 - avoid_print
+   info - The imported package 'path' isn't a dependency of the importing package - lib\data\services\local_database.dart:2:8 - depend_on_referenced_packages
+   info - Don't invoke 'print' in production code - lib\data\services\supabase_service.dart:54:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\sync_service.dart:30:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\sync_service.dart:45:5 - avoid_print
+   info - Statements in an if should be enclosed in a block - lib\presentation\login_screen\login_screen.dart:26:9 - curly_braces_in_flow_control_structures
+warning - The value of the local variable 'mockZPL' isn't used - lib\presentation\printing\print_label_screen.dart:49:12 - unused_local_variable
+warning - Unused import: '../../routes/app_routes.dart' - lib\presentation\receiving\receiving_check_in_screen.dart:5:8 - unused_import
+warning - The value of the field '_lote' isn't used - lib\presentation\receiving\receiving_check_in_screen.dart:26:10 - unused_field
+warning - The value of the field '_validade' isn't used - lib\presentation\receiving\receiving_check_in_screen.dart:27:10 - unused_field
+warning - The value of the field '_destino' isn't used - lib\presentation\replenishment\replenishment_screen.dart:25:11 - unused_field
+   info - Use 'const' with the constructor to improve performance - lib\presentation\scanner\widgets\task_context_widget.dart:25:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\scanner\widgets\task_context_widget.dart:25:30 - prefer_const_constructors
+
+15 issues found. (ran in 8.7s)

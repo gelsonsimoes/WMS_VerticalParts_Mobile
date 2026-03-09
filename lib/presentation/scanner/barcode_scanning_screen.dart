@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
-import '../../theme/app_theme.dart';
-import '../../routes/app_routes.dart';
-import './widgets/scanner_overlay_widget.dart';
-import './widgets/task_context_widget.dart';
-import './widgets/manual_input_widget.dart';
-import './quantity_confirmation_screen.dart';
+import 'package:verticalpartswms/theme/app_theme.dart';
+import 'package:verticalpartswms/routes/app_routes.dart';
+import 'package:verticalpartswms/presentation/scanner/widgets/scanner_overlay_widget.dart';
+import 'package:verticalpartswms/presentation/scanner/widgets/task_context_widget.dart';
+import 'package:verticalpartswms/presentation/scanner/widgets/manual_input_widget.dart';
+import 'package:verticalpartswms/presentation/scanner/quantity_confirmation_screen.dart';
+import 'package:verticalpartswms/data/models/task_model.dart';
+import 'package:verticalpartswms/data/providers/scanning_provider.dart';
 
 class BarcodeScanningScreen extends StatefulWidget {
   const BarcodeScanningScreen({super.key});
@@ -21,12 +24,15 @@ class _BarcodeScanningScreenState extends State<BarcodeScanningScreen> {
   bool _hasPermission = false;
   bool _isCheckingPermission = true;
   bool _showManualInput = false;
-  bool _isProcessing = false;
-  Color _feedbackColor = AppTheme.goldPrimary;
 
-  // Mock de contexto de tarefa
-  final String _itemEsperado = "VEPEL-BPI-174FX";
-  final int _qtdEsperada = 5;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Task) {
+      context.read<ScanningProvider>().setActiveTask(args);
+    }
+  }
 
   @override
   void initState() {
@@ -48,66 +54,36 @@ class _BarcodeScanningScreenState extends State<BarcodeScanningScreen> {
     });
   }
 
-  Future<void> _processarCodigo(String code) async {
-    if (_isProcessing) return;
+  Future<void> _processarCodigo(ScanningProvider provider, String code) async {
+    if (provider.isProcessing) return;
 
-    setState(() {
-      _isProcessing = true;
-      _feedbackColor = AppTheme.goldPrimary;
-    });
+    final success = await provider.validateBarcode(code);
+    
+    if (success && mounted) {
+      final currentItem = provider.activeTask!.itens.first; // Simplificado para o item esperado da tarefa
 
-    // Simulação de Requisição REST (Passthrough para validar o que foi lido)
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    // Lógica Versátil: Aceita o SKU esperado ou qualquer código de produto mock
-    bool isSucesso = code == _itemEsperado || code.length >= 5;
-
-    if (isSucesso) {
-      setState(() {
-        _feedbackColor = AppTheme.successGreen;
-      });
-      
-      if (mounted) {
-        // Navega para a confirmação de quantidade
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => QuantityConfirmationScreen(
-              sku: code,
-              expectedQuantity: _qtdEsperada,
-            ),
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => QuantityConfirmationScreen(
+            sku: code,
+            expectedQuantity: currentItem.quantidadeEsperada,
+            taskId: provider.activeTask!.id,
+            itemId: currentItem.id,
           ),
-        );
+        ),
+      );
 
-        // Se confirmou com sucesso, reseta para próxima leitura
-        if (result == true) {
-          setState(() {
-            _isProcessing = false;
-            _feedbackColor = AppTheme.goldPrimary;
-          });
-          return;
-        }
+      if (result == true) {
+        provider.resetFeedback();
       }
-    } else {
-      setState(() {
-        _feedbackColor = AppTheme.errorRed;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("ITEM NÃO RECONHECIDO OU FORA DA TAREFA", style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-      }
-    }
-
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-        _feedbackColor = AppTheme.goldPrimary;
-      });
+    } else if (provider.errorMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.errorMessage!, style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
     }
   }
 
@@ -143,6 +119,9 @@ class _BarcodeScanningScreenState extends State<BarcodeScanningScreen> {
       );
     }
 
+    final provider = context.watch<ScanningProvider>();
+    final task = provider.activeTask;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('ESCANEAMENTO'),
@@ -159,41 +138,77 @@ class _BarcodeScanningScreenState extends State<BarcodeScanningScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty && !_isProcessing) {
-                _processarCodigo(barcodes.first.rawValue ?? "");
+              final barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty) {
+                _processarCodigo(provider, barcodes.first.rawValue ?? "");
               }
             },
           ),
 
-          ScannerOverlayWidget(borderColor: _feedbackColor),
+          ScannerOverlayWidget(borderColor: provider.feedbackColor),
 
           Positioned(
             top: 2.h,
             left: 5.w,
             right: 5.w,
-            child: TaskContextWidget(
-              operacao: "CONTROLE DE SAÍDA",
-              itemEsperado: _itemEsperado,
-              quantidade: _qtdEsperada,
-            ),
+            child: task == null 
+              ? const Center(child: CircularProgressIndicator())
+              : TaskContextWidget.fromItem(
+                operacao: task.tipo.name == 'alocacao' ? "ALOCAÇÃO (GUARDA)" : "SEPARAÇÃO (PICKING)",
+                item: task.itens.first,
+              ),
           ),
 
           Positioned(
             bottom: 5.h,
-            left: 10.w,
-            right: 10.w,
-            child: SizedBox(
-              height: 9.h,
-              child: ElevatedButton.icon(
-                onPressed: () => setState(() => _showManualInput = true),
-                icon: const Icon(Icons.keyboard),
-                label: const Text('ENTRADA MANUAL'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceDark,
-                  foregroundColor: AppTheme.goldPrimary,
+            left: 5.w,
+            right: 5.w,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 9.h,
+                    child: ElevatedButton.icon(
+                      onPressed: () => setState(() => _showManualInput = true),
+                      icon: const Icon(Icons.keyboard),
+                      label: const Text('MANUAL'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.surfaceDark,
+                        foregroundColor: AppTheme.goldPrimary,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                SizedBox(width: 3.w),
+                Expanded(
+                  flex: 3,
+                  child: SizedBox(
+                    height: 9.h,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (task == null) return;
+                        Navigator.pushNamed(
+                          context, 
+                          AppRoutes.damageReport,
+                          arguments: {
+                            'taskId': task.id,
+                            'itemId': task.itens.first.id,
+                            'sku': provider.expectedSKU,
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.report_problem),
+                      label: const Text('RELATAR AVARIA'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.errorRed,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -202,11 +217,11 @@ class _BarcodeScanningScreenState extends State<BarcodeScanningScreen> {
               onCancel: () => setState(() => _showManualInput = false),
               onSubmitted: (code) {
                 setState(() => _showManualInput = false);
-                _processarCodigo(code);
+                _processarCodigo(provider, code);
               },
             ),
             
-          if (_isProcessing)
+          if (provider.isProcessing)
             Container(
               color: Colors.black26,
               child: const Center(child: CircularProgressIndicator()),
