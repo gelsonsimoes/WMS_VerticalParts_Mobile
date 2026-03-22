@@ -8,6 +8,7 @@ import 'package:verticalpartswms/presentation/inventory/quick_query_screen.dart'
 import 'package:verticalpartswms/presentation/inventory/blind_count_screen.dart';
 import 'package:verticalpartswms/presentation/inventory/inventory_count_screen.dart';
 import 'package:verticalpartswms/presentation/registry/quick_registry_screen.dart';
+import 'package:verticalpartswms/presentation/portaria/check_in_portaria_screen.dart';
 import 'package:verticalpartswms/presentation/replenishment/replenishment_screen.dart';
 import 'package:verticalpartswms/presentation/printing/print_label_screen.dart';
 import 'package:verticalpartswms/presentation/picking/picking_screen.dart';
@@ -37,7 +38,8 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String dashboard = '/dashboard';
   static const String inventoryCount  = '/inventory-count';
-  static const String quickRegistry   = '/quick-registry';
+  static const String quickRegistry    = '/quick-registry';
+  static const String checkInPortaria  = '/check-in-portaria';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -58,7 +60,8 @@ class AppRoutes {
       notifications: (context) => const NotificationsScreen(),
       dashboard: (context) => const DashboardScreen(),
       inventoryCount: (context) => const InventoryCountScreen(),
-      quickRegistry:  (context) => const QuickRegistryScreen(),
+      quickRegistry:    (context) => const QuickRegistryScreen(),
+      checkInPortaria:  (context) => const CheckInPortariaScreen(),
       damageReport: (context) {
         final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         return DamageReportScreen(

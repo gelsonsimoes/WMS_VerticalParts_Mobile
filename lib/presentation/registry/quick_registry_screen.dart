@@ -193,12 +193,13 @@ abstract class _BaseFlowState<T extends StatefulWidget> extends State<T> {
   String? get operadorId =>
       Provider.of<AuthProvider>(context, listen: false).user?.id;
 
-  Future<void> tirarFoto() async {
+  Future<void> tirarFoto({bool docMode = false}) async {
     try {
       final xf = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 75,
-        maxWidth: 1024,
+        imageQuality: docMode ? 85 : 72, // maior qualidade para documentos
+        maxWidth: docMode ? 1600 : 1024, // resolução extra para leitura de CPF
+        preferredCameraDevice: CameraDevice.rear,
       );
       if (xf != null && mounted) setState(() => fotoFile = File(xf.path));
     } catch (e) {
@@ -349,10 +350,33 @@ class _MotoristaFlowState extends _BaseFlowState<_MotoristaFlow> {
     }
   }
 
+  // Motorista usa modo documento: maior resolução + dica de flash
+  @override
+  Future<void> tirarFoto({bool docMode = false}) =>
+      super.tirarFoto(docMode: true);
+
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     padding: EdgeInsets.all(4.w),
     child: Column(children: [
+      // Banner de lanterna
+      Container(
+        padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1600),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.goldPrimary.withOpacity(0.4)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.flashlight_on_rounded, color: AppTheme.goldPrimary, size: 16),
+          SizedBox(width: 2.w),
+          Expanded(child: Text(
+            'ATIVE O FLASH DO CELULAR antes de tirar a foto para garantir leitura do documento.',
+            style: TextStyle(color: AppTheme.goldPrimary, fontSize: 8.5.sp, fontWeight: FontWeight.bold),
+          )),
+        ]),
+      ),
+      SizedBox(height: 1.5.h),
       buildCameraButton(),
       SizedBox(height: 2.h),
       buildField('NOME COMPLETO *', _nomeCtrl, hint: 'Ex: João Silva', uppercase: false),
@@ -389,6 +413,27 @@ class _VeiculoFlowState extends _BaseFlowState<_VeiculoFlow> {
     if (placa.isEmpty) { snack('Placa é obrigatória.', AppTheme.errorRed); return; }
     setState(() => enviando = true);
     try {
+      // ── Trava de placa duplicada ─────────────────────────────────────
+      final existeAtivo = await SupabaseService.client
+          .from('veiculos').select('id, status').eq('placa', placa).maybeSingle();
+      if (existeAtivo != null) {
+        final st = existeAtivo['status'] ?? '?';
+        snack('⚠ Placa $placa já está cadastrada (status: $st).', AppTheme.goldPrimary);
+        setState(() => enviando = false);
+        return;
+      }
+      final existePendente = await SupabaseService.client
+          .from('registros_campo_pendentes')
+          .select('id')
+          .filter('dados->>placa', 'eq', placa)
+          .eq('status', 'pendente')
+          .maybeSingle();
+      if (existePendente != null) {
+        snack('⚠ Placa $placa já está em processo de aprovação.', AppTheme.goldPrimary);
+        setState(() => enviando = false);
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────
       final id = const Uuid().v4();
       await SupabaseService.client.from('veiculos').insert({
         'id': id, 'placa': placa, 'tipo': _tipo,

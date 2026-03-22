@@ -1,0 +1,153 @@
+name: Build & Publish APK
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'android/**'
+
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Notas desta versão'
+        required: false
+        default: 'Build automático via GitHub Actions'
+
+jobs:
+  build:
+    name: Flutter Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Flutter SDK ────────────────────────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: 'stable'
+          cache: true
+
+      # ── .env de build ──────────────────────────────────────────────────
+      - name: Create .env file
+        run: |
+          cat > .env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+
+      # ── Dependências ───────────────────────────────────────────────────
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      # ── Build APK (release sem assinatura para distribuição interna) ───
+      - name: Build APK
+        run: flutter build apk --release --no-tree-shake-icons
+        # Para APK assinado, adicione:
+        # env:
+        #   KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+        #   KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        #   KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        #   KEY_PATH: ${{ secrets.KEY_PATH }}
+
+      # ── Extrai versão do pubspec ────────────────────────────────────────
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep "^version:" pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          BUILD=$(grep "^version:" pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          COMMIT=$(git rev-parse --short HEAD)
+          SIZE=$(du -m build/app/outputs/flutter-apk/app-release.apk | cut -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+          echo "filename=WMS_VerticalParts_v${VERSION}_${COMMIT}.apk" >> $GITHUB_OUTPUT
+
+      # ── Renomeia APK ───────────────────────────────────────────────────
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/${{ steps.version.outputs.filename }}
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/WMS_VerticalParts_latest.apk
+
+      # ── Upload para Supabase Storage ───────────────────────────────────
+      - name: Upload versioned APK to Supabase Storage
+        run: |
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/app-releases/${{ steps.version.outputs.filename }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-upsert: true" \
+            --data-binary @build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload latest APK to Supabase Storage
+        run: |
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/app-releases/WMS_VerticalParts_latest.apk" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-upsert: true" \
+            --data-binary @build/app/outputs/flutter-apk/app-release.apk
+
+      # ── Atualiza app_versions no Supabase ─────────────────────────────
+      - name: Update app_versions table
+        run: |
+          APK_URL="${{ secrets.SUPABASE_URL }}/storage/v1/object/public/app-releases/WMS_VerticalParts_latest.apk"
+          VERSIONED_URL="${{ secrets.SUPABASE_URL }}/storage/v1/object/public/app-releases/${{ steps.version.outputs.filename }}"
+          NOTES="${{ github.event.inputs.release_notes || 'Build automático — commit ${{ steps.version.outputs.commit }}' }}"
+
+          # Desativa versões anteriores
+          curl -X PATCH \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/app_versions?ativo=eq.true" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"ativo": false}'
+
+          # Insere nova versão ativa
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/app_versions" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"versao\": \"${{ steps.version.outputs.version }}\",
+              \"build_number\": ${{ steps.version.outputs.build }},
+              \"apk_url\": \"$APK_URL\",
+              \"tamanho_mb\": ${{ steps.version.outputs.size }},
+              \"commit_hash\": \"${{ steps.version.outputs.commit }}\",
+              \"release_notes\": \"$NOTES\",
+              \"plataforma\": \"android\",
+              \"ativo\": true
+            }"
+
+      # ── Artefato local ─────────────────────────────────────────────────
+      - name: Upload APK as GitHub artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WMS-VerticalParts-APK-v${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # ── Summary ────────────────────────────────────────────────────────
+      - name: Job Summary
+        run: |
+          echo "## ✅ APK Publicado com Sucesso" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Versão | \`${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ steps.version.outputs.commit }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tamanho | ~${{ steps.version.outputs.size }}MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Storage | \`app-releases/WMS_VerticalParts_latest.apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**O botão APP no site já aponta para esta versão automaticamente.**" >> $GITHUB_STEP_SUMMARY

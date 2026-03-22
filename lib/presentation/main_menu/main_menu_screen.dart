@@ -67,6 +67,11 @@ class MainMenuScreen extends StatelessWidget {
                   mainAxisSpacing: 4.w,
                   children: [
                     CategoryTile(
+                      title: 'CHECK-IN PORTARIA',
+                      icon: Icons.where_to_vote_rounded,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.checkInPortaria),
+                    ),
+                    CategoryTile(
                       title: 'ENTRADA E RECEBIMENTO',
                       icon: Icons.unarchive_rounded,
                       onTap: () => Navigator.pushNamed(context, AppRoutes.receiving),
