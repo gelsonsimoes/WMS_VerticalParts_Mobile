@@ -6,6 +6,7 @@ import 'package:verticalpartswms/widgets/sync_status_widget.dart';
 import 'package:verticalpartswms/widgets/category_tile.dart';
 import 'package:verticalpartswms/routes/app_routes.dart';
 import 'package:verticalpartswms/data/providers/auth_provider.dart';
+import 'package:verticalpartswms/data/providers/notification_provider.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -13,7 +14,8 @@ class MainMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final userName = authProvider.user?.nome.toUpperCase() ?? 'SESSÃO ATIVA';
+    final notifProvider = Provider.of<NotificationProvider>(context);
+    final userName = authProvider.user?.nome.toUpperCase() ?? 'OPERADOR';
     final userProfile = authProvider.user?.perfil.toUpperCase() ?? 'OPERADOR';
 
     return Scaffold(
@@ -25,6 +27,31 @@ class MainMenuScreen extends StatelessWidget {
         ),
         centerTitle: true,
         automaticallyImplyLeading: false,
+        actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: AppTheme.goldPrimary),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
+              ),
+              if (notifProvider.naoLidas > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: AppTheme.errorRed, shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '${notifProvider.naoLidas}',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -32,9 +59,7 @@ class MainMenuScreen extends StatelessWidget {
           child: Column(
             children: [
               const SyncStatusWidget(),
-              
               SizedBox(height: 3.h),
-              
               Expanded(
                 child: GridView.count(
                   crossAxisCount: 2,
@@ -52,7 +77,7 @@ class MainMenuScreen extends StatelessWidget {
                       onTap: () => Navigator.pushNamed(context, AppRoutes.allocationTasks),
                     ),
                     CategoryTile(
-                      title: 'REMANEJAMENTO (ESTOQUE)',
+                      title: 'REMANEJAMENTO',
                       icon: Icons.local_shipping_rounded,
                       onTap: () => Navigator.pushNamed(context, AppRoutes.replenishment),
                     ),
@@ -62,9 +87,20 @@ class MainMenuScreen extends StatelessWidget {
                       onTap: () => Navigator.pushNamed(context, AppRoutes.pickingTasks),
                     ),
                     CategoryTile(
+                      title: 'DASHBOARD',
+                      icon: Icons.bar_chart_rounded,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.dashboard),
+                    ),
+                    CategoryTile(
                       title: 'CONSULTAS E INVENTÁRIO',
                       icon: Icons.qr_code_scanner_rounded,
                       onTap: () => Navigator.pushNamed(context, AppRoutes.inventoryMenu),
+                    ),
+                    CategoryTile(
+                      title: 'NOTIFICAÇÕES',
+                      icon: Icons.notifications_active_rounded,
+                      badge: notifProvider.naoLidas > 0 ? '${notifProvider.naoLidas}' : null,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
                     ),
                     CategoryTile(
                       title: 'SAIR DO SISTEMA',
@@ -77,7 +113,6 @@ class MainMenuScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 1.h),
                 child: Text(

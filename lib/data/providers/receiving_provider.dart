@@ -6,7 +6,6 @@ class ReceivingProvider with ChangeNotifier {
   String? _sku;
   String _quantity = "0";
   String _batch = "";
-  String _expiry = "";
   String _weight = "";
   String _color = "";
   int _step = 1; // 1: NF, 2: Product, 3: Qty, 4: Extra
@@ -19,7 +18,6 @@ class ReceivingProvider with ChangeNotifier {
   String? get sku => _sku;
   String get quantity => _quantity;
   String get batch => _batch;
-  String get expiry => _expiry;
   String get weight => _weight;
   String get color => _color;
   int get step => _step;
@@ -64,7 +62,6 @@ class ReceivingProvider with ChangeNotifier {
   }
 
   void setBatch(String val) => _batch = val;
-  void setExpiry(String val) => _expiry = val;
   void setWeight(String val) => _weight = val;
   void setColor(String val) => _color = val;
 
@@ -79,8 +76,7 @@ class ReceivingProvider with ChangeNotifier {
         nfe: _nfe!,
         sku: _sku!,
         quantidade: int.parse(_quantity),
-        lote: _batch,
-        validade: _expiry,
+        referencia: _batch,
         peso: double.tryParse(_weight.replaceAll(',', '.')),
         cor: _color,
       );
@@ -90,7 +86,6 @@ class ReceivingProvider with ChangeNotifier {
         _sku = null;
         _quantity = "0";
         _batch = "";
-        _expiry = "";
         _weight = "";
         _color = "";
         _step = 2; // Volta para o próximo produto da mesma NF
@@ -111,7 +106,6 @@ class ReceivingProvider with ChangeNotifier {
     _sku = null;
     _quantity = "0";
     _batch = "";
-    _expiry = "";
     _weight = "";
     _color = "";
     _step = 1;

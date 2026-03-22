@@ -93,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? const CircularProgressIndicator(color: AppTheme.darkBackground)
                   : Text('ENTRAR NO SISTEMA', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)))),
             SizedBox(height: 4.h),
-            Text('v2.0.1 · Supabase Integrated', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            Text('v4.3.25 · Supabase Realtime', style: Theme.of(context).textTheme.bodySmall?.copyWith(
               letterSpacing: 1, color: AppTheme.textMuted)),
           ])),
         ),

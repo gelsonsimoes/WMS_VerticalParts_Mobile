@@ -159,7 +159,7 @@ class _ReceivingCheckInScreenState extends State<ReceivingCheckInScreen> {
             height: 9.h,
             child: ElevatedButton(
               onPressed: () => provider.nextToExtra(),
-              child: const Text('PRÓXIMO: LOTE/VALIDADE'),
+              child: const Text('PRÓXIMO: DADOS ADICIONAIS'),
             ),
           ),
         ],
@@ -174,17 +174,15 @@ class _ReceivingCheckInScreenState extends State<ReceivingCheckInScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('DADOS ADICIONAIS', style: TextStyle(color: AppTheme.goldPrimary, fontSize: 13.sp, fontWeight: FontWeight.bold)),
-          Text('Preencha Peso e Cor para finalizar o item.', style: TextStyle(color: AppTheme.textMuted, fontSize: 10.sp)),
+          Text('Preencha os dados complementares para finalizar o item.', style: TextStyle(color: AppTheme.textMuted, fontSize: 10.sp)),
           SizedBox(height: 2.h),
-          _buildField("LOTE", "Ex: L2024-X1", (v) => provider.setBatch(v)),
-          SizedBox(height: 2.h),
-          _buildField("VALIDADE", "DD/MM/AAAA", (v) => provider.setExpiry(v)),
+          _buildField("Nº SÉRIE / REFERÊNCIA", "Ex: REF-2024-001", (v) => provider.setBatch(v)),
           SizedBox(height: 2.h),
           Row(
             children: [
               Expanded(child: _buildField("PESO (kg)", "0.00", (v) => provider.setWeight(v))),
               SizedBox(width: 4.w),
-              Expanded(child: _buildField("COR / OBS", "Ex: Azul", (v) => provider.setColor(v))),
+              Expanded(child: _buildField("COR / OBS", "Ex: Prata", (v) => provider.setColor(v))),
             ],
           ),
           const Spacer(),

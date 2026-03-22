@@ -26,6 +26,11 @@ class InventoryMenuScreen extends StatelessWidget {
                 childAspectRatio: 2.2,
                 children: [
                   CategoryTile(
+                    title: 'INVENTÁRIO ATIVO\n(CONTAR + BIPAR)',
+                    icon: Icons.document_scanner_rounded,
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.inventoryCount),
+                  ),
+                  CategoryTile(
                     title: 'CONSULTA RÁPIDA\n(PRODUTO/ENDEREÇO)',
                     icon: Icons.search_rounded,
                     onTap: () => Navigator.pushNamed(context, AppRoutes.quickQuery),

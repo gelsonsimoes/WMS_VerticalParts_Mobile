@@ -192,8 +192,7 @@ class SupabaseService {
     required String nfe,
     required String sku,
     required int quantidade,
-    String? lote,
-    String? validade,
+    String? referencia,
     double? peso,
     String? cor,
   }) async {
@@ -204,8 +203,7 @@ class SupabaseService {
         'nfe': nfe,
         'sku': sku,
         'quantidade': quantidade,
-        'lote': lote,
-        'validade': validade,
+        'referencia': referencia,
         'peso': peso,
         'cor': cor,
         'operador_id': uid,
@@ -214,6 +212,77 @@ class SupabaseService {
       return true;
     } catch (e) {
       print('[Supabase] Erro recebimento: $e');
+      return false;
+    }
+  }
+
+  // ── Inventário Ativo ────────────────────────────────────────────────────
+
+  /// Busca produto por SKU ou código de barras (campo sku ou codigo_barras).
+  static Future<Map<String, dynamic>?> buscarProdutoPorCodigo(String codigo) async {
+    try {
+      final upCode = codigo.trim().toUpperCase();
+      // Tenta por SKU exato primeiro
+      var res = await client.from('produtos').select(
+        'id, sku, descricao, peso, quantidade_total:estoques(quantidade)'
+      ).eq('sku', upCode).maybeSingle();
+      if (res != null) return _normalizarProduto(res);
+
+      // Fallback: busca por codigo_barras
+      res = await client.from('produtos').select(
+        'id, sku, descricao, peso'
+      ).eq('codigo_barras', upCode).maybeSingle();
+      return res != null ? _normalizarProduto(res) : null;
+    } catch (e) {
+      print('[SupabaseService] buscarProdutoPorCodigo: $e');
+      return null;
+    }
+  }
+
+  static Map<String, dynamic> _normalizarProduto(Map<String, dynamic> p) {
+    // Soma quantidade total de todos os estoques
+    final estoques = p['quantidade_total'];
+    int qtdTotal = 0;
+    if (estoques is List) {
+      for (final e in estoques) {
+        qtdTotal += (e['quantidade'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return {...p, 'quantidade_total': qtdTotal};
+  }
+
+  /// Insere uma linha em auditoria_inventario (tabela ponte Mobile→Web).
+  static Future<bool> registrarContagemInventario({
+    required String sessaoId,
+    required String? operadorId,
+    required String? operadorNome,
+    required String sku,
+    String? descricao,
+    String? enderecoId,
+    String? enderecoLabel,
+    required int quantidadeContada,
+    int? quantidadeEsperada,
+    double? peso,
+  }) async {
+    try {
+      final divergente = quantidadeEsperada != null && quantidadeContada != quantidadeEsperada;
+      await client.from('auditoria_inventario').insert({
+        'operador_id':          operadorId,
+        'operador_nome':        operadorNome ?? 'Operador',
+        'sku':                  sku,
+        'descricao':            descricao,
+        'endereco_id':          enderecoId,
+        'endereco_label':       enderecoLabel,
+        'quantidade_contada':   quantidadeContada,
+        'quantidade_esperada':  quantidadeEsperada,
+        'peso':                 peso,
+        'sessao_id':            sessaoId,
+        'dispositivo':          'mobile',
+        'status':               divergente ? 'divergente' : 'registrado',
+      });
+      return true;
+    } catch (e) {
+      print('[Supabase] Erro contagem inventario: $e');
       return false;
     }
   }

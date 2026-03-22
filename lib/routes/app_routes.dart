@@ -6,6 +6,7 @@ import 'package:verticalpartswms/presentation/scanner/task_summary_screen.dart';
 import 'package:verticalpartswms/presentation/inventory/inventory_menu_screen.dart';
 import 'package:verticalpartswms/presentation/inventory/quick_query_screen.dart';
 import 'package:verticalpartswms/presentation/inventory/blind_count_screen.dart';
+import 'package:verticalpartswms/presentation/inventory/inventory_count_screen.dart';
 import 'package:verticalpartswms/presentation/replenishment/replenishment_screen.dart';
 import 'package:verticalpartswms/presentation/printing/print_label_screen.dart';
 import 'package:verticalpartswms/presentation/picking/picking_screen.dart';
@@ -13,6 +14,8 @@ import 'package:verticalpartswms/presentation/receiving/receiving_check_in_scree
 import 'package:verticalpartswms/presentation/main_menu/widgets/task_list_screen.dart';
 import 'package:verticalpartswms/presentation/splash/splash_screen.dart';
 import 'package:verticalpartswms/presentation/common/damage_report_screen.dart';
+import 'package:verticalpartswms/presentation/notifications/notifications_screen.dart';
+import 'package:verticalpartswms/presentation/dashboard/dashboard_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -30,6 +33,9 @@ class AppRoutes {
   static const String allocationTasks = '/allocation-tasks';
   static const String pickingTasks = '/picking-tasks';
   static const String damageReport = '/damage-report';
+  static const String notifications = '/notifications';
+  static const String dashboard = '/dashboard';
+  static const String inventoryCount = '/inventory-count';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -47,6 +53,9 @@ class AppRoutes {
       receiving: (context) => const ReceivingCheckInScreen(),
       allocationTasks: (context) => const TaskListScreen(tipo: 'alocacao'),
       pickingTasks: (context) => const TaskListScreen(tipo: 'picking'),
+      notifications: (context) => const NotificationsScreen(),
+      dashboard: (context) => const DashboardScreen(),
+      inventoryCount: (context) => const InventoryCountScreen(),
       damageReport: (context) {
         final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         return DamageReportScreen(

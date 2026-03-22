@@ -70,6 +70,52 @@ class SyncService {
     return true;
   }
 
+  // Executa contagem de inventário com fallback offline
+  Future<bool> performInventoryCount({
+    required String sessaoId,
+    required String? operadorId,
+    required String? operadorNome,
+    required String sku,
+    String? descricao,
+    String? enderecoId,
+    String? enderecoLabel,
+    required int quantidadeContada,
+    int? quantidadeEsperada,
+    double? peso,
+  }) async {
+    final dados = {
+      'sessao_id': sessaoId,
+      'operador_id': operadorId,
+      'operador_nome': operadorNome ?? 'Operador',
+      'sku': sku,
+      'descricao': descricao,
+      'endereco_id': enderecoId,
+      'endereco_label': enderecoLabel,
+      'quantidade_contada': quantidadeContada,
+      'quantidade_esperada': quantidadeEsperada,
+      'peso': peso,
+    };
+
+    final success = await SupabaseService.registrarContagemInventario(
+      sessaoId: sessaoId,
+      operadorId: operadorId,
+      operadorNome: operadorNome,
+      sku: sku,
+      descricao: descricao,
+      enderecoId: enderecoId,
+      enderecoLabel: enderecoLabel,
+      quantidadeContada: quantidadeContada,
+      quantidadeEsperada: quantidadeEsperada,
+      peso: peso,
+    );
+
+    if (!success) {
+      await localDb.saveAction('inventario', dados);
+      print('[SyncService] Contagem inventário salva offline para sincronização posterior.');
+    }
+    return true; // operador continua — dado nunca se perde
+  }
+
   // Sincroniza tudo que está pendente
   Future<void> syncPendingActions() async {
     final connectivityResults = await Connectivity().checkConnectivity();
@@ -99,6 +145,19 @@ class SyncService {
           destinoId: dados['destino_id'],
           sku: dados['sku'],
           quantidade: dados['quantidade'],
+        );
+      } else if (tipo == 'inventario') {
+        success = await SupabaseService.registrarContagemInventario(
+          sessaoId: dados['sessao_id'] ?? '',
+          operadorId: dados['operador_id'],
+          operadorNome: dados['operador_nome'],
+          sku: dados['sku'],
+          descricao: dados['descricao'],
+          enderecoId: dados['endereco_id'],
+          enderecoLabel: dados['endereco_label'],
+          quantidadeContada: dados['quantidade_contada'] ?? 0,
+          quantidadeEsperada: dados['quantidade_esperada'],
+          peso: dados['peso'] != null ? (dados['peso'] as num).toDouble() : null,
         );
       }
 

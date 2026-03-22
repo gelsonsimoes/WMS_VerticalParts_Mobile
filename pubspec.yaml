@@ -1,7 +1,7 @@
 name: verticalpartswms
 description: "WMS VerticalParts Mobile — conectado ao Supabase"
 publish_to: "none"
-version: 2.0.1+3
+version: 4.3.25+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -21,6 +21,7 @@ dependencies:
   shared_preferences: ^2.2.3
   flutter_dotenv: ^5.1.0
   image_picker: ^1.1.2
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:

@@ -13,6 +13,7 @@ import 'data/providers/receiving_provider.dart';
 import 'data/providers/scanning_provider.dart';
 import 'data/providers/quantity_confirmation_provider.dart';
 import 'data/providers/replenishment_provider.dart';
+import 'data/providers/notification_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ScanningProvider()),
         ChangeNotifierProvider(create: (_) => QuantityConfirmationProvider()),
         ChangeNotifierProvider(create: (_) => ReplenishmentProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: const VerticalPartsWMS(),
     ),
