@@ -19,6 +19,7 @@ import 'package:verticalpartswms/presentation/common/damage_report_screen.dart';
 import 'package:verticalpartswms/presentation/notifications/notifications_screen.dart';
 import 'package:verticalpartswms/presentation/dashboard/dashboard_screen.dart';
 import 'package:verticalpartswms/presentation/picking/outbound_picking_screen.dart';
+import 'package:verticalpartswms/widgets/auth_guard.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -57,11 +58,18 @@ class AppRoutes {
       printLabel: (context) => const PrintLabelScreen(),
       picking: (context) => const PickingScreen(),
       receiving: (context) => const ReceivingCheckInScreen(),
-      allocationTasks: (context) => const TaskListScreen(tipo: 'alocacao'),
-      pickingTasks: (context) => const TaskListScreen(tipo: 'picking'),
+      allocationTasks: (context) => const AuthGuard(
+        child: TaskListScreen(tipo: 'alocacao'),
+      ),
+      pickingTasks: (context) => const AuthGuard(
+        child: TaskListScreen(tipo: 'picking'),
+      ),
       notifications: (context) => const NotificationsScreen(),
       dashboard: (context) => const DashboardScreen(),
-      outboundPicking: (context) => const OutboundPickingScreen(),
+      outboundPicking: (context) => const AuthGuard(
+        perfisPermitidos: ['Supervisor', 'Operador de Armazem', 'operador', 'supervisor'],
+        child: OutboundPickingScreen(),
+      ),
       inventoryCount: (context) => const InventoryCountScreen(),
       quickRegistry:    (context) => const QuickRegistryScreen(),
       checkInPortaria:  (context) => const CheckInPortariaScreen(),

@@ -331,15 +331,57 @@ class SupabaseService {
     }).eq('id', itemId);
   }
 
-  /// Finaliza o pedido: muda status para 'separado' e registra o operador
+  /// Finaliza o pedido: muda status para 'separado', calcula e salva peso_total_separado.
+  ///
+  /// Estratégia de peso:
+  ///  1. Busca itens do pedido com JOIN em produtos para obter peso_bruto.
+  ///  2. Soma (peso_bruto * quantidade_separada) para cada item.
+  ///  3. Atualiza pedidos_venda_omie com status='separado' + peso calculado.
   static Future<void> finalizarPedidoOmie({
     required String pedidoId,
     required String operadorNome,
   }) async {
+    double pesoTotal = 0.0;
+    try {
+      // Busca itens com peso do produto (peso_bruto em kg)
+      final itens = await client
+          .from('itens_pedido_omie')
+          .select('quantidade_separada, sku')
+          .eq('pedido_id', pedidoId);
+
+      if (itens is List && itens.isNotEmpty) {
+        // Para cada item, busca o peso_bruto do produto
+        for (final item in itens) {
+          final qtd = (item['quantidade_separada'] as num?)?.toDouble() ?? 0.0;
+          if (qtd <= 0) continue;
+          final sku = item['sku'] as String?;
+          if (sku == null || sku.isEmpty) continue;
+
+          final produto = await client
+              .from('produtos')
+              .select('peso_bruto, peso')
+              .eq('sku', sku)
+              .maybeSingle();
+
+          if (produto != null) {
+            // Aceita campo peso_bruto ou peso (fallback)
+            final pesoProd = (produto['peso_bruto'] as num?)?.toDouble()
+                ?? (produto['peso'] as num?)?.toDouble()
+                ?? 0.0;
+            pesoTotal += pesoProd * qtd;
+          }
+        }
+      }
+    } catch (e) {
+      print('[SupabaseService] Erro ao calcular peso_total_separado: $e');
+      // Continua mesmo sem o peso — não bloqueia a finalização
+    }
+
     await client.from('pedidos_venda_omie').update({
-      'status': 'separado',
-      'atualizado_em': DateTime.now().toIso8601String(),
-      'observacoes': 'Separado por $operadorNome em ${DateTime.now().toIso8601String()}',
+      'status':              'separado',
+      'atualizado_em':       DateTime.now().toIso8601String(),
+      'observacoes':         'Separado por $operadorNome em ${DateTime.now().toIso8601String()}',
+      'peso_total_separado': pesoTotal > 0 ? pesoTotal : null,
     }).eq('id', pedidoId);
   }
 }

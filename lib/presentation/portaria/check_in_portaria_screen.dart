@@ -61,12 +61,12 @@ class _CheckInPortariaScreenState extends State<CheckInPortariaScreen> {
     setState(() { _loading = true; _erroMensagem = null; _placaLida = placa; });
     _scanner.stop();
     try {
-      // Busca veículo ativo
+      // Busca veículo cadastrado (disponível ou em rota — 'ativo' não é valor válido)
       final res = await SupabaseService.client
           .from('veiculos')
           .select('id, placa, tipo, marca, modelo, status, motorista_id')
           .eq('placa', placa)
-          .eq('status', 'ativo')
+          .inFilter('status', ['disponivel', 'em_rota', 'manutencao'])
           .maybeSingle();
 
       if (!mounted) return;
@@ -167,6 +167,75 @@ class _CheckInPortariaScreenState extends State<CheckInPortariaScreen> {
     final patioId = _veiculo?['patio_id'];
     if (patioId == null) return;
     setState(() => _enviando = true);
+
+    try {
+      // ── Verifica carga pendente antes de liberar ───────────────────
+      final cargaPendente = await SupabaseService.client
+          .from('pedidos_venda_omie')
+          .select('numero_pedido, status')
+          .eq('veiculo_placa', _placaLida ?? '')
+          .inFilter('status', ['pendente', 'reservado', 'em_separacao', 'separado'])
+          .limit(1)
+          .maybeSingle();
+
+      if (cargaPendente != null && mounted) {
+        setState(() => _enviando = false);
+        final pedidoNum = cargaPendente['numero_pedido'] ?? '—';
+        final statusCarga = cargaPendente['status'] ?? '—';
+        // Exibe alerta bloqueante com opção de liberação por supervisor
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppTheme.errorRed, width: 2)),
+            title: Row(children: [
+              const Icon(Icons.block_rounded, color: AppTheme.errorRed, size: 28),
+              const SizedBox(width: 10),
+              Text('CARGA PENDENTE', style: TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.black, fontSize: 13.sp)),
+            ]),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(
+                'NÃO LIBERAR — Pedido $pedidoNum com status "${statusCarga.toUpperCase()}" vinculado a este veículo.',
+                style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 1.5.h),
+              Text('Conclua a separação e conferência antes de realizar o check-out.',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 9.sp),
+                textAlign: TextAlign.center,
+              ),
+            ]),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('ENTENDIDO', style: TextStyle(color: AppTheme.goldPrimary, fontWeight: FontWeight.black, fontSize: 10.sp)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context, 'supervisor');
+                },
+                child: Text('LIBERAR (SUPERVISOR)', style: TextStyle(color: AppTheme.errorRed, fontSize: 9.sp)),
+              ),
+            ],
+          ),
+        ).then((result) async {
+          if (result == 'supervisor' && mounted) {
+            // Libera com confirmação de supervisor
+            await _executarCheckOut(patioId);
+          }
+        });
+        return;
+      }
+
+      await _executarCheckOut(patioId);
+    } catch (e) {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  Future<void> _executarCheckOut(String patioId) async {
+    setState(() => _enviando = true);
     try {
       await SupabaseService.client.from('movimentacao_patio').update({
         'status': 'saiu',
@@ -180,7 +249,13 @@ class _CheckInPortariaScreenState extends State<CheckInPortariaScreen> {
         _resetScanner();
       }
     } catch (e) {
-      if (mounted) setState(() => _enviando = false);
+      if (mounted) {
+        setState(() => _enviando = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erro ao registrar check-out: $e', style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppTheme.errorRed,
+        ));
+      }
     }
   }
 
