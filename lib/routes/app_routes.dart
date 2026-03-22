@@ -18,6 +18,7 @@ import 'package:verticalpartswms/presentation/splash/splash_screen.dart';
 import 'package:verticalpartswms/presentation/common/damage_report_screen.dart';
 import 'package:verticalpartswms/presentation/notifications/notifications_screen.dart';
 import 'package:verticalpartswms/presentation/dashboard/dashboard_screen.dart';
+import 'package:verticalpartswms/presentation/picking/outbound_picking_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -40,6 +41,7 @@ class AppRoutes {
   static const String inventoryCount  = '/inventory-count';
   static const String quickRegistry    = '/quick-registry';
   static const String checkInPortaria  = '/check-in-portaria';
+  static const String outboundPicking  = '/outbound-picking';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -59,6 +61,7 @@ class AppRoutes {
       pickingTasks: (context) => const TaskListScreen(tipo: 'picking'),
       notifications: (context) => const NotificationsScreen(),
       dashboard: (context) => const DashboardScreen(),
+      outboundPicking: (context) => const OutboundPickingScreen(),
       inventoryCount: (context) => const InventoryCountScreen(),
       quickRegistry:    (context) => const QuickRegistryScreen(),
       checkInPortaria:  (context) => const CheckInPortariaScreen(),

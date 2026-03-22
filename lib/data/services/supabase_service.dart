@@ -286,4 +286,60 @@ class SupabaseService {
       return false;
     }
   }
+
+  // ── OMIE: Módulo de Saída Dirigida ─────────────────────────────────────────
+
+  /// Retorna pedidos prontos para separar (status: reservado | reservado_parcial | em_separacao)
+  static Future<List<Map<String, dynamic>>> getPedidosParaSeparar() async {
+    try {
+      final res = await client
+          .from('pedidos_venda_omie')
+          .select('*, itens_pedido_omie(id)')
+          .inFilter('status', ['reservado', 'reservado_parcial', 'em_separacao'])
+          .order('criado_em', ascending: true);
+      return List<Map<String, dynamic>>.from(res as List);
+    } catch (e) {
+      print('[Supabase] Erro getPedidosParaSeparar: $e');
+      return [];
+    }
+  }
+
+  /// Retorna os itens de um pedido ordenados por endereço (rota ótima)
+  static Future<List<Map<String, dynamic>>> getItensPedido(String pedidoId) async {
+    try {
+      final res = await client
+          .from('itens_pedido_omie')
+          .select('*')
+          .eq('pedido_id', pedidoId)
+          .order('endereco_reservado', ascending: true);
+      return List<Map<String, dynamic>>.from(res as List);
+    } catch (e) {
+      print('[Supabase] Erro getItensPedido: $e');
+      return [];
+    }
+  }
+
+  /// Registra a coleta de um item no picking Omie
+  static Future<void> registrarItemSeparado({
+    required String itemId,
+    required int quantidade,
+    required String operadorId,
+  }) async {
+    await client.from('itens_pedido_omie').update({
+      'quantidade_separada': quantidade,
+      'status': quantidade > 0 ? 'separado' : 'falta',
+    }).eq('id', itemId);
+  }
+
+  /// Finaliza o pedido: muda status para 'separado' e registra o operador
+  static Future<void> finalizarPedidoOmie({
+    required String pedidoId,
+    required String operadorNome,
+  }) async {
+    await client.from('pedidos_venda_omie').update({
+      'status': 'separado',
+      'atualizado_em': DateTime.now().toIso8601String(),
+      'observacoes': 'Separado por $operadorNome em ${DateTime.now().toIso8601String()}',
+    }).eq('id', pedidoId);
+  }
 }

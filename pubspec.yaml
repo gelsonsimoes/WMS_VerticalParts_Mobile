@@ -1,7 +1,7 @@
 name: verticalpartswms
 description: "WMS VerticalParts Mobile — conectado ao Supabase"
 publish_to: "none"
-version: 4.3.25+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

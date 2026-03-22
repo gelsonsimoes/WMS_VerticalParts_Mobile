@@ -92,6 +92,11 @@ class MainMenuScreen extends StatelessWidget {
                       onTap: () => Navigator.pushNamed(context, AppRoutes.pickingTasks),
                     ),
                     CategoryTile(
+                      title: 'SAÍDA DIRIGIDA\n(OMIE)',
+                      icon: Icons.output_rounded,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.outboundPicking),
+                    ),
+                    CategoryTile(
                       title: 'DASHBOARD',
                       icon: Icons.bar_chart_rounded,
                       onTap: () => Navigator.pushNamed(context, AppRoutes.dashboard),
