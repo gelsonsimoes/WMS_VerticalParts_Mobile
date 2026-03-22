@@ -97,6 +97,11 @@ class MainMenuScreen extends StatelessWidget {
                       onTap: () => Navigator.pushNamed(context, AppRoutes.inventoryMenu),
                     ),
                     CategoryTile(
+                      title: 'CADASTRO RÁPIDO\n(MOTORISTA/VEÍCULO)',
+                      icon: Icons.app_registration_rounded,
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.quickRegistry),
+                    ),
+                    CategoryTile(
                       title: 'NOTIFICAÇÕES',
                       icon: Icons.notifications_active_rounded,
                       badge: notifProvider.naoLidas > 0 ? '${notifProvider.naoLidas}' : null,
